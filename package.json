@@ -1,0 +1,16 @@
+{
+  "name": "webmidi-piano",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "vite"
+  },
+  "dependencies": {
+    "bootstrap": "^5.3.8",
+    "opensheetmusicdisplay": "^2.0.0",
+    "spessasynth_core": "latest",
+    "spessasynth_lib": "^4.3.3"
+  },
+  "devDependencies": {
+    "vite": "latest"
+  }
+}
