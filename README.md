@@ -1,4 +1,4 @@
 Press "Open Piano" Button to play sound.
 
-DEMO:\n
+DEMO:
 https://blue-september.github.io/Schemas-with-MIDI/
