@@ -49,6 +49,14 @@ body {
 	background: #88ccff;
 }
 
+.white-key.activeNumber {
+	background: #88ff88;
+}
+
 .black-key.active {
 	background: #3399ff;
+}
+
+.black-key.activeNumber {
+	background: #55ff33;
 }

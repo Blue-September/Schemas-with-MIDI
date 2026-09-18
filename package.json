@@ -1,6 +1,6 @@
 {
-	"name": "webmidi-piano",
-	"version": "0.0.1",
+	"name": "webmidi-piano-schemata",
+	"version": "0.0.2",
 	"scripts": {
 		"dev": "vite",
 		"build": "vite build",
@@ -8,7 +8,6 @@
 		"deploy": "gh-pages -d dist"
 	},
 	"dependencies": {
-		"bootstrap": "^5.3.8",
 		"opensheetmusicdisplay": "^2.0.0",
 		"spessasynth_core": "latest",
 		"spessasynth_lib": "^4.3.3"

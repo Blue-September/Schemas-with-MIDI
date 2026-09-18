@@ -74,16 +74,23 @@ function parserOSMDcursor(cursors) {
 	while (!cursor.iterator.EndReached) {
 		// voice part
 		for (const VoiceEntries of cursor.iterator.currentVoiceEntries) {
-			console.log(VoiceEntries);
+			console.dir(VoiceEntries);
 			let time = VoiceEntries.timestamp.realValue;
+
 			let bar = cursor.iterator.currentMeasure.MeasureNumberXML - 1; // from bar 1
 			let implicit =
 				cursor.iterator.currentMeasure.ImplicitMeasureFromXml;
 
 			if (bar < 0) bar = 0;
+
+			let lyrics = VoiceEntries.lyricsEntries;
+			if (lyrics.nElements > 0) lyrics = lyrics.table.$$s1.value.text;
+			else lyrics = false;
+			// console.dir(lyrics);
+
 			// note part
 			for (const note of VoiceEntries.notes) {
-				//console.log(note);
+				//console.dir(note);
 				// rest flag
 				if (!note.isRestFlag) {
 					let pitch = note.halfTone + 12;
@@ -98,6 +105,7 @@ function parserOSMDcursor(cursors) {
 								pitch,
 								bar * bartime + time + offset,
 								dur,
+								lyrics,
 							]);
 						else if (pitch != tieNote[0][0])
 							// not stored in tie list
@@ -105,9 +113,16 @@ function parserOSMDcursor(cursors) {
 								pitch,
 								bar * bartime + time + offset,
 								dur,
+								lyrics,
 							]);
 						// end of tie
 						else {
+							playbackData.push({
+								pitch: 0,
+								time: (bar * bartime + time + offset) * 4,
+								dur: 0,
+								lyrics,
+							});
 							time = tieNote[0][1];
 							dur += tieNote[0][2];
 							tieNote.shift();
@@ -115,6 +130,7 @@ function parserOSMDcursor(cursors) {
 								pitch: pitch,
 								time: time * 4,
 								dur: dur * 4,
+								lyrics,
 							});
 						}
 					} else {
@@ -123,6 +139,7 @@ function parserOSMDcursor(cursors) {
 							pitch: pitch,
 							time: (bar * bartime + time + offset) * 4,
 							dur: dur * 4,
+							lyrics,
 						});
 						if (implicit) {
 							offset = dur;
@@ -153,29 +170,29 @@ export function startPlayback() {
 
 	playbackData.forEach((note, index) => {
 		// note on
-		if (note.pitch != 0) {
-			const onTimer = setTimeout(
-				() => {
-					playNote(note.pitch);
-					if (note.time != CurCursorTime) {
-						CurCursorTime = note.time;
-						cursors[0].next();
-					}
-				},
-				note.time * 1000 * bps,
-			);
+		const onTimer = setTimeout(
+			() => {
+				if (!note.lyrics) playNote(note.pitch);
+				else playNote(note.pitch, 100, true);
+				if (note.time != CurCursorTime) {
+					CurCursorTime = note.time;
+					cursors[0].next();
+				}
+			},
+			note.time * 1000 * bps,
+		);
 
-			// note off
-			const offTimer = setTimeout(
-				() => {
-					stopNote(note.pitch);
-				},
-				(note.time + note.dur) * 1000 * bps,
-			);
+		// note off
+		const offTimer = setTimeout(
+			() => {
+				if (!note.lyrics) stopNote(note.pitch);
+				else stopNote(note.pitch, true);
+			},
+			(note.time + note.dur) * 1000 * bps,
+		);
 
-			timers.push(onTimer);
-			timers.push(offTimer);
-		}
+		timers.push(onTimer);
+		timers.push(offTimer);
 	});
 }
 

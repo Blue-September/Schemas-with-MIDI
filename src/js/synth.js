@@ -1,4 +1,6 @@
 import { WorkletSynthesizer } from "spessasynth_lib";
+// load "spessasynth_processor.min.js"
+// load "soundfonts/GeneralUserGS.sf3"
 
 let audioContext;
 let synth;
