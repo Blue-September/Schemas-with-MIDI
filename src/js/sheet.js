@@ -1,15 +1,9 @@
 import "opensheetmusicdisplay";
 import { playNote, stopNote } from "./piano.js";
+import { Player } from "./player.js";
 
+let player;
 let osmd;
-let cursors = [];
-let cursorFlag = 0;
-
-let bpm = 60;
-let timeSignature = 1;
-let playbackData = [];
-let implicitMeasure = 0;
-let timers = [];
 
 export function handleFileSelect(evt) {
 	var file = evt.target.files[0]; // FileList object
@@ -41,18 +35,10 @@ export function handleFileSelect(evt) {
 			];
 			osmd.setOptions({ cursorsOptions: cursorsOptions });
 			osmd.enableOrDisableCursors(true);
-			cursors = osmd.cursors;
-			console.log(osmd);
-			//console.log(cursors[0]);
-			// build playbackdata
-			bpm = osmd.Sheet.SourceMeasures[0].tempoInBPM;
-			timeSignature =
-				osmd.sheet.sourceMeasures[0].activeTimeSignature.realValue;
-			implicitMeasure =
-				osmd.sheet.sourceMeasures[0].ImplicitMeasureFromXml;
+			player = new Player(osmd);
+			player.getOSMDInfo();
+			player.parserOSMDcursor();
 			osmd.render();
-			playbackData = parserOSMDcursor(cursors);
-			//console.log(implicitMeasure);
 		});
 	};
 
@@ -62,152 +48,4 @@ export function handleFileSelect(evt) {
 	} else {
 		reader.readAsText(file);
 	}
-}
-
-function parserOSMDcursor(cursors) {
-	const cursor = cursors[0];
-	const bartime = timeSignature;
-	let offset = 0;
-	let playbackData = [];
-
-	let tieNote = [];
-	while (!cursor.iterator.EndReached) {
-		// voice part
-		for (const VoiceEntries of cursor.iterator.currentVoiceEntries) {
-			console.dir(VoiceEntries);
-			let time = VoiceEntries.timestamp.realValue;
-
-			let bar = cursor.iterator.currentMeasure.MeasureNumberXML - 1; // from bar 1
-			let implicit =
-				cursor.iterator.currentMeasure.ImplicitMeasureFromXml;
-
-			if (bar < 0) bar = 0;
-
-			let lyrics = VoiceEntries.lyricsEntries;
-			if (lyrics.nElements > 0) lyrics = lyrics.table.$$s1.value.text;
-			else lyrics = false;
-			// console.dir(lyrics);
-
-			// note part
-			for (const note of VoiceEntries.notes) {
-				//console.dir(note);
-				// rest flag
-				if (!note.isRestFlag) {
-					let pitch = note.halfTone + 12;
-					let dur = note.length.realValue;
-
-					// check tie
-					if (note.tie) {
-						// start of tie
-						if (tieNote.length == 0)
-							// first tie
-							tieNote.push([
-								pitch,
-								bar * bartime + time + offset,
-								dur,
-								lyrics,
-							]);
-						else if (pitch != tieNote[0][0])
-							// not stored in tie list
-							tieNote.push([
-								pitch,
-								bar * bartime + time + offset,
-								dur,
-								lyrics,
-							]);
-						// end of tie
-						else {
-							playbackData.push({
-								pitch: 0,
-								time: (bar * bartime + time + offset) * 4,
-								dur: 0,
-								lyrics,
-							});
-							time = tieNote[0][1];
-							dur += tieNote[0][2];
-							tieNote.shift();
-							playbackData.push({
-								pitch: pitch,
-								time: time * 4,
-								dur: dur * 4,
-								lyrics,
-							});
-						}
-					} else {
-						// no tie
-						playbackData.push({
-							pitch: pitch,
-							time: (bar * bartime + time + offset) * 4,
-							dur: dur * 4,
-							lyrics,
-						});
-						if (implicit) {
-							offset = dur;
-							console.log("implicit!, offset = ", offset);
-						}
-					}
-				}
-			}
-		}
-		cursor.next();
-	}
-	cursor.reset();
-	playbackData.sort((a, b) => {
-		a.time - b.time;
-	});
-	console.log(playbackData);
-	return playbackData;
-}
-
-// buttom
-
-export function startPlayback() {
-	stopPlayback();
-	cursors[0].reset();
-	cursors[0].show();
-	let CurCursorTime = 0;
-	const bps = 60 / bpm;
-
-	playbackData.forEach((note, index) => {
-		// note on
-		const onTimer = setTimeout(
-			() => {
-				if (!note.lyrics) playNote(note.pitch);
-				else playNote(note.pitch, 100, true);
-				if (note.time != CurCursorTime) {
-					CurCursorTime = note.time;
-					cursors[0].next();
-				}
-			},
-			note.time * 1000 * bps,
-		);
-
-		// note off
-		const offTimer = setTimeout(
-			() => {
-				if (!note.lyrics) stopNote(note.pitch);
-				else stopNote(note.pitch, true);
-			},
-			(note.time + note.dur) * 1000 * bps,
-		);
-
-		timers.push(onTimer);
-		timers.push(offTimer);
-	});
-}
-
-export function stopPlayback() {
-	timers.forEach((timer) => {
-		clearTimeout(timer);
-	});
-	timers = [];
-	// 保險：全部 note off
-	for (let i = 0; i < 128; i++) {
-		stopNote(i);
-	}
-}
-
-export function cursorNext() {
-	cursors[0].next();
-	console.log(cursors[0]);
 }
