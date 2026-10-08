@@ -24,16 +24,26 @@
 			<button id="openPianoBtn">Open Piano</button>
 
 			<div class="bpm-control">
-				<label for="bpmSlider">BPM: <span id="bpmValue">60</span></label>
-				<input type="range" id="bpmSlider" min="20" max="240" value="60" step="1">
+				<label for="bpmSlider"
+					>BPM: <span id="bpmValue">60</span></label
+				>
+				<input
+					type="range"
+					id="bpmSlider"
+					min="20"
+					max="240"
+					value="60"
+					step="1"
+				/>
 			</div>
+
+			<select id="scoreSelect">
+				<option value="">-- 選擇樂譜 --</option>
+			</select>
 		</div>
 
 		<div id="osmdContainer"></div>
-
-		<div class="piano suit">
-			<div id="piano"></div>
-		</div>
+		<div id="piano"></div>
 
 		<script type="module" src="src/js/main.js"></script>
 		<script></script>

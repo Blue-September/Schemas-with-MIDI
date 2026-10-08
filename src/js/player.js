@@ -1,9 +1,11 @@
 import { playNote, stopNote } from "./piano.js";
 
 export class Player {
-
 	// _INIT_
-	constructor( osmd ) {	
+	constructor(osmd) {
+		this.ac = new AbortController();
+		const opt = { signal: this.ac.signal };
+
 		this.osmd = osmd;
 
 		this.cursors;
@@ -13,28 +15,45 @@ export class Player {
 		this.playbackData = [];
 		this.timers = [];
 
-
 		this.isPlaying = false;
 		this.playStartTimestamp = 0; // performance.now() 記錄的實際開始時間
-		this.playFromTime = 0;       // 這次播放是從歌曲的第幾拍開始的
+		this.playFromTime = 0; // 這次播放是從歌曲的第幾拍開始的
 		this.curCursorTime = 0;
-		
+
 		// 按鈕
-		this.playBtn = document.getElementById("playBtn")
-			.addEventListener("click", () => { this.startPlayback(); });
+		this.playBtn = document.getElementById("playBtn").addEventListener(
+			"click",
+			() => {
+				this.startPlayback();
+			},
+			opt,
+		);
 
-		this.stopBtn = document.getElementById("stopBtn")
-			.addEventListener("click", () => { this.stopPlayback(); });
+		this.stopBtn = document.getElementById("stopBtn").addEventListener(
+			"click",
+			() => {
+				this.stopPlayback();
+			},
+			opt,
+		);
 
-		this.nextBtn = document.getElementById("nextBtn")
-			.addEventListener("click", () => { this.cursorNext(); });
-		
+		this.nextBtn = document.getElementById("nextBtn").addEventListener(
+			"click",
+			() => {
+				this.cursorNext();
+			},
+			opt,
+		);
+
 		// BPM 滑條
 		this.bpmValue = document.getElementById("bpmValue");
-		this.bpmSlider = document.getElementById("bpmSlider")
-			.addEventListener("input", (e) => {
+		this.bpmSlider = document.getElementById("bpmSlider").addEventListener(
+			"input",
+			(e) => {
 				this.setBpm(Number(e.target.value));
-			});	
+			},
+			opt,
+		);
 	}
 
 	getOSMDInfo(osmd = this.osmd) {
@@ -50,7 +69,7 @@ export class Player {
 	// Playback data
 	//===============
 
-	pushPlayBackData( pitch, time, dur, lyrics ) {
+	pushPlayBackData(pitch, time, dur, lyrics) {
 		this.playbackData.push({
 			pitch: pitch,
 			time: time * 4,
@@ -159,7 +178,7 @@ export class Player {
 		this.startPlayback(currentTime);
 	}
 
-	setBpm( newBpm ) {
+	setBpm(newBpm) {
 		this.bpm = newBpm;
 		this.bpmValue.textContent = newBpm;
 
@@ -170,9 +189,9 @@ export class Player {
 	}
 
 	// 將 cursor 快進到指定位置
-	acclerCursor( toTime = 0 ) {
+	acclerCursor(toTime = 0) {
 		let i = 0;
-		while(true) {
+		while (true) {
 			let time = this.playbackData[i].time;
 			if (time > toTime) break;
 
@@ -181,10 +200,10 @@ export class Player {
 				this.cursors[0].next();
 			}
 			i++;
-		}	
+		}
 	}
 
-	startPlayback( fromTime = 0 ) {
+	startPlayback(fromTime = 0) {
 		this.stopPlayback();
 		this.cursors[0].hide();
 		this.cursors[0].reset();
@@ -196,11 +215,10 @@ export class Player {
 
 		// 只排程「時間點 >= fromTime」的音符
 		const remainingNotes = this.playbackData.filter(
-			(note) => note.time >= fromTime
+			(note) => note.time >= fromTime,
 		);
 
 		remainingNotes.forEach((note) => {
-
 			const delta = (note.time - fromTime) * 1000 * bps;
 
 			// note on
@@ -220,15 +238,18 @@ export class Player {
 			}, delta);
 
 			// note off
-			const offTimer = setTimeout(() => {
-				if (note.pitch == 0) {
-					// rest
-				} else if (!note.lyrics) {
-					stopNote(note.pitch);
-				} else {
-					stopNote(note.pitch, true);
-				}
-			}, delta + note.dur * 1000 * bps);
+			const offTimer = setTimeout(
+				() => {
+					if (note.pitch == 0) {
+						// rest
+					} else if (!note.lyrics) {
+						stopNote(note.pitch);
+					} else {
+						stopNote(note.pitch, true);
+					}
+				},
+				delta + note.dur * 1000 * bps,
+			);
 
 			this.timers.push(onTimer);
 			this.timers.push(offTimer);
@@ -240,7 +261,7 @@ export class Player {
 			clearTimeout(timer);
 		});
 
-		this.timers = [];		
+		this.timers = [];
 		this.curCursorTime = 0;
 
 		// ALL note off
@@ -254,7 +275,10 @@ export class Player {
 		this.cursors[0].next();
 	}
 
-	showIdicatorBar() {
+	showIdicatorBar() {}
 
+	dispose() {
+		this.stopPlayback();
+		this.ac.abort(); // 一次移除這個 Player 綁的所有監聽器
 	}
 }
