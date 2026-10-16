@@ -84,7 +84,7 @@ function bindKey(key, note) {
 	});
 }
 
-export function playNote(note, velocity = 64, hand) {
+export function playNote(note, velocity = 64, hand = "R") {
 	//console.log("hand = ", hand);
 	const key = keyMap.get(note);
 	if (hand == "R") {
@@ -93,8 +93,6 @@ export function playNote(note, velocity = 64, hand) {
 	} else if (hand == "L") {
 		if (key) key.classList.add("leftActive");
 		noteOn(note, velocity);
-	} else {
-		console.error("Unknow hand!");
 	}
 }
 
