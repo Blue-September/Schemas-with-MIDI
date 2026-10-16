@@ -1,5 +1,4 @@
 import "opensheetmusicdisplay";
-import { playNote, stopNote } from "./piano.js";
 import { Player } from "./player.js";
 
 let player;

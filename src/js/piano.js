@@ -13,9 +13,11 @@ const BLACK_NOTES = [
 ];
 
 const keyMap = new Map();
+const labelMap = new Map();
 
 export function createPiano() {
 	piano.innerHTML = "";
+	labelMap.clear();
 
 	// A0 ~ C8
 	for (let octave = 0; octave < 8; octave++) {
@@ -63,6 +65,12 @@ function createLastC() {
 }
 
 function bindKey(key, note) {
+	// 琴鍵上的指示文字
+	const label = document.createElement("span");
+	label.className = "key-label";
+	key.appendChild(label);
+	labelMap.set(note, label);
+
 	key.addEventListener("mousedown", () => {
 		playNote(note);
 	});
@@ -76,22 +84,50 @@ function bindKey(key, note) {
 	});
 }
 
-export function playNote(note, velocity = 100, isNumber = false) {
-	noteOn(note, velocity);
+export function playNote(note, velocity = 64, hand) {
+	//console.log("hand = ", hand);
 	const key = keyMap.get(note);
-	if (!isNumber) {
-		if (key) key.classList.add("active");
+	if (hand == "R") {
+		if (key) key.classList.add("rightActive");
+		noteOn(note, velocity);
+	} else if (hand == "L") {
+		if (key) key.classList.add("leftActive");
+		noteOn(note, velocity);
 	} else {
-		if (key) key.classList.add("activeNumber");
+		console.error("Unknow hand!");
 	}
 }
 
-export function stopNote(note, isNumber = false) {
+export function stopNote(note) {
 	noteOff(note);
 	const key = keyMap.get(note);
-	if (!isNumber) {
-		if (key) key.classList.remove("active");
-	} else {
-		if (key) key.classList.remove("activeNumber");
+	if (key) {
+		key.classList.remove("rightActive");
+		key.classList.remove("leftActive");
 	}
+}
+
+export function setIndicator(note, text, hand) {
+	const label = labelMap.get(note);
+	const key = keyMap.get(note);
+	if (!label || !key) return;
+	label.textContent = text;
+	label.classList.add("show");
+	label.classList.remove("hand-R", "hand-L");
+	label.classList.add("hand-" + hand);
+	key.classList.remove("hint-R", "hint-L");
+	key.classList.add("hint-" + hand);
+}
+
+export function clearIndicator(note) {
+	const label = labelMap.get(note);
+	const key = keyMap.get(note);
+	if (!label || !key) return;
+	label.textContent = "";
+	label.classList.remove("show", "hand-R", "hand-L");
+	key.classList.remove("hint-R", "hint-L");
+}
+
+export function clearAllIndicators() {
+	labelMap.forEach((_, note) => clearIndicator(note));
 }

@@ -1,4 +1,31 @@
-import { playNote, stopNote } from "./piano.js";
+import {
+	playNote,
+	stopNote,
+	setIndicator,
+	clearIndicator,
+	clearAllIndicators,
+} from "./piano.js";
+
+// 把各種 Unicode 數字轉成一般 0-9
+const SOLID_TO_HOLLOW = {
+	"❶": "①",
+	"❷": "②",
+	"❸": "③",
+	"❹": "④",
+	"❺": "⑤",
+	"❻": "⑥",
+	"❼": "⑦",
+};
+
+function solidToHollow(text) {
+	return String(text).replace(/./gu, (c) => SOLID_TO_HOLLOW[c] ?? c);
+}
+
+function isCircled(text) {
+	return /^[⓪①-⑳]$/u.test(text);
+}
+
+const LEAD_MS = 1000; // 提前多少毫秒顯示指示器：1秒
 
 export class Player {
 	// _INIT_
@@ -69,12 +96,13 @@ export class Player {
 	// Playback data
 	//===============
 
-	pushPlayBackData(pitch, time, dur, lyrics) {
+	pushPlayBackData(pitch, time, dur, lyrics, hand) {
 		this.playbackData.push({
 			pitch: pitch,
 			time: time * 4,
 			dur: dur * 4,
 			lyrics: lyrics,
+			hand: hand, // "R" or "L"
 		});
 	}
 
@@ -90,6 +118,10 @@ export class Player {
 			// voice part
 			for (const VoiceEntries of cursor.iterator.currentVoiceEntries) {
 				//console.dir(VoiceEntries);
+				const hand =
+					VoiceEntries.ParentSourceStaffEntry.ParentStaff.Id === 1
+						? "R"
+						: "L";
 
 				// note part
 				for (const note of VoiceEntries.notes) {
@@ -125,25 +157,31 @@ export class Player {
 						// start of tie
 						if (tieNote.length == 0)
 							// first tie
-							tieNote.push([pitch, time, dur, lyrics]);
+							tieNote.push([pitch, time, dur, lyrics, hand]);
 						else if (pitch != tieNote[0][0])
 							// not stored in tie list
-							tieNote.push([pitch, time, dur, lyrics]);
+							tieNote.push([pitch, time, dur, lyrics, hand]);
 						// end of tie
 						else {
-							this.pushPlayBackData(0, time, dur, lyrics);
+							this.pushPlayBackData(0, time, dur, lyrics, hand);
 							//
 							time = tieNote[0][1];
 							dur += tieNote[0][2];
 							tieNote.shift();
-							this.pushPlayBackData(pitch, time, dur, lyrics);
+							this.pushPlayBackData(
+								pitch,
+								time,
+								dur,
+								lyrics,
+								hand,
+							);
 						}
 					} else {
 						// no tie
-						this.pushPlayBackData(pitch, time, dur, lyrics);
+						this.pushPlayBackData(pitch, time, dur, lyrics, hand);
 						if (implicit) {
 							offset = dur;
-							console.log("implicit!, offset = ", offset);
+							//console.log("implicit!, offset = ", offset);
 						}
 					}
 				}
@@ -154,7 +192,7 @@ export class Player {
 		this.playbackData.sort((a, b) => {
 			a.time - b.time;
 		});
-		//console.dir(this.playbackData);
+		console.dir(this.playbackData);
 	}
 
 	//===================================
@@ -221,14 +259,32 @@ export class Player {
 		remainingNotes.forEach((note) => {
 			const delta = (note.time - fromTime) * 1000 * bps;
 
+			// 指示器：提前顯示，音符開始時清掉
+			let text;
+			if (note.pitch != 0) {
+				if (note.lyrics) text = solidToHollow(note.lyrics);
+				const showTimer = setTimeout(
+					() => {
+						setIndicator(note.pitch, text, note.hand);
+					},
+					Math.max(0, delta - LEAD_MS),
+				);
+
+				const hideTimer = setTimeout(() => {
+					clearIndicator(note.pitch);
+				}, delta);
+
+				this.timers.push(showTimer, hideTimer);
+			}
+
 			// note on
 			const onTimer = setTimeout(() => {
 				if (note.pitch == 0) {
 					// rest
 				} else if (!note.lyrics) {
-					playNote(note.pitch);
+					playNote(note.pitch, 64, note.hand);
 				} else {
-					playNote(note.pitch, 100, true);
+					playNote(note.pitch, 96, note.hand);
 				}
 
 				if (note.time != this.curCursorTime) {
@@ -245,7 +301,7 @@ export class Player {
 					} else if (!note.lyrics) {
 						stopNote(note.pitch);
 					} else {
-						stopNote(note.pitch, true);
+						stopNote(note.pitch);
 					}
 				},
 				delta + note.dur * 1000 * bps,
@@ -264,6 +320,8 @@ export class Player {
 		this.timers = [];
 		this.curCursorTime = 0;
 
+		clearAllIndicators();
+
 		// ALL note off
 		for (let i = 0; i < 128; i++) {
 			stopNote(i);
@@ -274,8 +332,6 @@ export class Player {
 	cursorNext() {
 		this.cursors[0].next();
 	}
-
-	showIdicatorBar() {}
 
 	dispose() {
 		this.stopPlayback();

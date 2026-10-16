@@ -44,19 +44,79 @@ body {
 	border-radius: 0 0 4px 4px;
 }
 
+/* key label (indicator) */
+
+.white-key,
+.black-key {
+	position: relative; /* 讓 label 能相對琴鍵定位；black-key 本來就是 absolute，不受影響 */
+}
+
+.black-key {
+	position: absolute; /* 確保黑鍵維持 absolute（放在上面規則之後） */
+}
+
+.key-label {
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: 6px;
+	text-align: center;
+	font-size: 18px;
+	font-weight: bold;
+	line-height: 1;
+	pointer-events: none;
+	white-space: nowrap;
+	overflow: visible;
+	opacity: 0;
+	transition: opacity 0.1s;
+}
+
+.black-key .key-label {
+	font-size: 16px;
+}
+
+.key-label.show {
+	opacity: 1;
+}
+
+/* 左右手顏色：右手藍、左手綠 */
+.white-key .key-label.hand-R {
+	color: #1a6fd1;
+}
+.white-key .key-label.hand-L {
+	color: #2a9d3a;
+}
+.black-key .key-label.hand-R,
+.black-key .key-label.hand-L {
+	color: #fff;
+}
+
+.white-key.hint-R {
+	background: #cfe6ff;
+}
+.white-key.hint-L {
+	background: #d6f5c8;
+}
+.black-key.hint-R {
+	background: #2a6fb8;
+}
+.black-key.hint-L {
+	background: #3f8f2a;
+}
+
 /* active */
-.white-key.active {
+.white-key.rightActive {
 	background: #88ccff;
 }
 
-.white-key.activeNumber {
+.white-key.leftActive {
 	background: #88ff88;
 }
 
-.black-key.active {
+.black-key.rightActive {
 	background: #3399ff;
 }
 
-.black-key.activeNumber {
+.black-key.leftActive {
 	background: #55ff33;
 }
