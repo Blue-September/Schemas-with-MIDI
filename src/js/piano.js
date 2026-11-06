@@ -85,15 +85,9 @@ function bindKey(key, note) {
 }
 
 export function playNote(note, velocity = 64, hand = "R") {
-	//console.log("hand = ", hand);
 	const key = keyMap.get(note);
-	if (hand == "R") {
-		if (key) key.classList.add("rightActive");
-		noteOn(note, velocity);
-	} else if (hand == "L") {
-		if (key) key.classList.add("leftActive");
-		noteOn(note, velocity);
-	}
+	if (key) key.classList.add(hand === "L" ? "leftActive" : "rightActive");
+	noteOn(note, velocity);
 }
 
 export function stopNote(note) {

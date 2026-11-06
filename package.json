@@ -1,6 +1,7 @@
 {
 	"name": "webmidi-piano-schemata",
-	"version": "0.1.0",
+	"version": "0.1.1",
+	"type": "module",
 	"scripts": {
 		"gen-score": "node scripts/gen-score-list.mjs",
 		"predev": "npm run gen-score",

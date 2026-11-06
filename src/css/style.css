@@ -46,21 +46,14 @@ body {
 
 /* key label (indicator) */
 
-.white-key,
-.black-key {
-	position: relative; /* 讓 label 能相對琴鍵定位；black-key 本來就是 absolute，不受影響 */
-}
-
-.black-key {
-	position: absolute; /* 確保黑鍵維持 absolute（放在上面規則之後） */
+.white-key {
+	position: relative;
 }
 
 .key-label {
 	position: absolute;
 	left: 0;
-	right: 0;
 	bottom: 6px;
-	text-align: center;
 	font-size: 18px;
 	font-weight: bold;
 	line-height: 1;
