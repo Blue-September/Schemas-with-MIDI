@@ -5,6 +5,13 @@ import { WorkletSynthesizer } from "spessasynth_lib";
 let audioContext;
 let synth;
 
+export const CH_PIANO = 0;
+export const CH_VIOLIN = 1;
+
+export function setProgram(channel, program) {
+	synth?.programChange(channel, program);
+}
+
 export async function initSynth() {
 	audioContext = new AudioContext({
 		sampleRate: 44100,
@@ -35,7 +42,8 @@ export async function initSynth() {
 	await synth.isReady;
 
 	// 設定鋼琴音色
-	synth.programChange(0, 6); // channel :0, program: harpsichord(6)
+	setProgram(CH_PIANO, 6); // 原本的音色
+setProgram(CH_VIOLIN, 40);  // GM 小提琴（0 起算的 program 編號
 	console.log("Synth Ready");
 }
 
@@ -58,12 +66,12 @@ export function click(accent = false) {
 	synth.noteOn(9, accent ? 76 : 77, accent ? 127 : 90);
 }
 
-export function noteOn(note, velocity = 100) {
+export function noteOn(note, velocity = 100, channel = CH_PIANO) {
 	if (!synth) return;
-	synth.noteOn(0, note, velocity);
+	synth.noteOn(channel, note, velocity);
 }
 
-export function noteOff(note) {
+export function noteOff(note, channel = CH_PIANO) {
 	if (!synth) return;
-	synth.noteOff(0, note);
+	synth.noteOff(channel, note);
 }
