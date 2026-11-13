@@ -1,4 +1,5 @@
 import { playNote, stopNote, setIndicator, clearIndicator, clearAllIndicators } from "./piano.js";
+import { click } from "./synth.js";
 
 const VEL_NORMAL = 100; // 沒勾選時所有音符
 const VEL_LOUD = 127; // 勾選後：有數字（MIDI velocity 上限 127）
@@ -42,14 +43,9 @@ export class Player {
 		this.playFromTime = 0; // 這次播放是從歌曲的第幾拍開始的
 		this.curCursorTime = 0;
 
-		this.stepIndex = 0; // 下一個要播的 step
-		this.stepHeld = []; // 目前按住中的音符
-
-		this.stepBtn = document.getElementById("stepBtn");
-		this.stepBtn.addEventListener("click", () => this.stepPlay(), opt);
-
 		// 按鈕
-		this.playBtn = document.getElementById("playBtn").addEventListener(
+		this.playBtn = document.getElementById("playBtn");
+		this.playBtn.addEventListener(
 			"click",
 			() => {
 				this.startPlayback();
@@ -57,15 +53,18 @@ export class Player {
 			opt,
 		);
 
-		this.stopBtn = document.getElementById("stopBtn").addEventListener(
+		this.stopBtn = document.getElementById("stopBtn");
+		this.stopBtn.addEventListener(
 			"click",
 			() => {
 				this.stopPlayback();
+				this.showStepHint();
 			},
 			opt,
 		);
 
-		this.nextBtn = document.getElementById("nextBtn").addEventListener(
+		this.nextBtn = document.getElementById("nextBtn");
+		this.nextBtn.addEventListener(
 			"click",
 			() => {
 				this.cursorNext();
@@ -73,9 +72,15 @@ export class Player {
 			opt,
 		);
 
+		this.stepIndex = 0; // 下一個要播的 step
+		this.stepHeld = []; // 目前按住中的音符
+		this.stepBtn = document.getElementById("stepBtn");
+		this.stepBtn.addEventListener("click", () => this.stepPlay(), opt);
+
 		// BPM 滑條
 		this.bpmValue = document.getElementById("bpmValue");
-		this.bpmSlider = document.getElementById("bpmSlider").addEventListener(
+		this.bpmSlider = document.getElementById("bpmSlider");
+		this.bpmSlider.addEventListener(
 			"input",
 			(e) => {
 				this.setSpeed(Number(e.target.value));
@@ -83,15 +88,19 @@ export class Player {
 			opt,
 		);
 
+		// check blcok
 		this.emphasisCb = document.getElementById("emphasisCb");
+		this.metroCb = document.getElementById("metroCb");
+		this.totalBeats = 0;
+		this.pickupBeats = 0; // 弱起長度（單位：四分音符拍）
 	}
 
-	getOSMDInfo(osmd = this.osmd) {
-		//console.log(this.osmd);
-		this.cursors = osmd.cursors;
-		this.bpm = osmd.Sheet.SourceMeasures[0].tempoInBPM;
-		this.setBpm(this.bpm);
-		this.timeSignature = osmd.sheet.sourceMeasures[0].activeTimeSignature.realValue;
+	getOSMDInfo() {
+		this.cursors = this.osmd.cursors;
+		this.baseBpm = this.osmd.Sheet.SourceMeasures[0].tempoInBPM;
+		this.setSpeed(1);
+		document.getElementById("bpmSlider").value = 1;
+		this.timeSignature = this.osmd.sheet.sourceMeasures[0].activeTimeSignature.realValue;
 	}
 
 	//===============
@@ -112,69 +121,57 @@ export class Player {
 	parserOSMDcursor() {
 		const cursor = this.cursors[0];
 		const bartime = this.timeSignature;
-		let offset = 0;
 		let tieNote = [];
 		let step = 0;
+
+		let measureStart = 0; // 目前小節的起點（全音符單位，跟 time 同單位）
+		let measureEnd = 0; // 目前小節內看到的最大結尾（相對小節起點）
+		let curMeasure = null;
+		let firstMeasureLen = null;
 
 		this.playbackData = [];
 
 		while (!cursor.iterator.EndReached) {
-			// voice part
+			// 換小節：起點 += 上一小節的實際長度
+			const m = cursor.iterator.currentMeasure;
+			if (m !== curMeasure) {
+				if (curMeasure !== null) {
+					if (firstMeasureLen === null) firstMeasureLen = measureEnd;
+					measureStart += measureEnd;
+				}
+				curMeasure = m;
+				measureEnd = 0;
+			}
+
 			for (const VoiceEntries of cursor.iterator.currentVoiceEntries) {
-				//console.dir(VoiceEntries);
 				const hand = VoiceEntries.ParentSourceStaffEntry.ParentStaff.Id === 1 ? "R" : "L";
 
-				// note part
 				for (const note of VoiceEntries.notes) {
-					//console.dir(note);
-
-					// note: implicit
-					let implicit = cursor.iterator.currentMeasure.ImplicitMeasureFromXml;
-
-					// note: pitch
 					let pitch = 0;
 					if (!note.isRestFlag) pitch = note.halfTone + 12;
 
-					// note: time
-					let bar = cursor.iterator.currentMeasure.MeasureNumberXML - 1; // from bar 1
-					if (bar < 0) bar = 0;
-					let time = VoiceEntries.timestamp.realValue;
-					time = bar * bartime + time + offset;
-
-					// note: durng
+					const rel = VoiceEntries.timestamp.realValue; // 相對小節起點
+					let time = measureStart + rel;
 					let dur = note.length.realValue;
 
-					// note: lyrics
+					measureEnd = Math.max(measureEnd, rel + dur);
+
 					let lyrics = VoiceEntries.lyricsEntries;
 					if (lyrics.nElements > 0) lyrics = lyrics.table.$$s1.value.text;
 					else lyrics = false;
-					//console.dir(lyrics);
 
-					// check tie
 					if (note.tie) {
-						// start of tie
-						if (tieNote.length == 0)
-							// first tie
-							tieNote.push([pitch, time, dur, lyrics, hand]);
-						else if (pitch != tieNote[0][0])
-							// not stored in tie list
-							tieNote.push([pitch, time, dur, lyrics, hand]);
-						// end of tie
+						if (tieNote.length == 0) tieNote.push([pitch, time, dur, lyrics, hand]);
+						else if (pitch != tieNote[0][0]) tieNote.push([pitch, time, dur, lyrics, hand]);
 						else {
 							this.pushPlayBackData(0, time, dur, lyrics, hand, step);
-							//
 							time = tieNote[0][1];
 							dur += tieNote[0][2];
 							tieNote.shift();
 							this.pushPlayBackData(pitch, time, dur, lyrics, hand, step);
 						}
 					} else {
-						// no tie
 						this.pushPlayBackData(pitch, time, dur, lyrics, hand, step);
-						if (implicit) {
-							offset = dur;
-							//console.log("implicit!, offset = ", offset);
-						}
 					}
 				}
 			}
@@ -182,7 +179,14 @@ export class Player {
 			step++;
 		}
 		cursor.reset();
+
+		// 弱起長度：第一小節比拍號短，就是弱起（單位：四分音符拍）
+		if (firstMeasureLen === null) firstMeasureLen = measureEnd;
+		this.pickupBeats = firstMeasureLen < bartime - 1e-6 ? firstMeasureLen * 4 : 0;
+
 		this.playbackData.sort((a, b) => a.time - b.time);
+		this.totalBeats = Math.max(0, ...this.playbackData.map((n) => n.time + n.dur));
+
 		this.stepNotes = [];
 		for (const n of this.playbackData) {
 			(this.stepNotes[n.step] ??= []).push(n);
@@ -204,8 +208,13 @@ export class Player {
 		return this.playFromTime + elapsedSongTime;
 	}
 
+	// BPM
 	get bpm() {
 		return this.baseBpm * this.speed;
+	}
+
+	updateBpmLabel() {
+		this.bpmValue.textContent = `${this.speed.toFixed(2)}x (${Math.round(this.bpm)} BPM)`;
 	}
 
 	setSpeed(newSpeed) {
@@ -213,18 +222,10 @@ export class Player {
 		const currentTime = this.isPlaying ? this.getCurrentSongTime() : null;
 
 		this.speed = newSpeed;
-		this.bpmValue.textContent = newSpeed.toFixed(2) + "x";
+		this.updateBpmLabel();
 
 		// 播放中就從目前進度用新速度重新排程
 		if (currentTime !== null) this.startPlayback(currentTime);
-	}
-
-	getOSMDInfo() {
-		this.cursors = this.osmd.cursors;
-		this.baseBpm = this.osmd.Sheet.SourceMeasures[0].tempoInBPM;
-		this.setSpeed(1);
-		document.getElementById("bpmSlider").value = 1;
-		this.timeSignature = this.osmd.sheet.sourceMeasures[0].activeTimeSignature.realValue;
 	}
 
 	// 將 cursor 快進到指定位置
@@ -287,9 +288,9 @@ export class Player {
 				if (note.pitch == 0) {
 					// rest
 				} else if (!note.lyrics) {
-					playNote(note.pitch, vel);
+					playNote(note.pitch, vel, note.hand);
 				} else {
-					playNote(note.pitch, vel, true);
+					playNote(note.pitch, vel, note.hand);
 				}
 
 				if (note.time != this.curCursorTime) {
@@ -315,6 +316,29 @@ export class Player {
 			this.timers.push(onTimer);
 			this.timers.push(offTimer);
 		});
+
+		// 節拍器：第 j 拍位於 p + j，j % bpb == 0 是下拍（重音）
+		const bpb = Math.max(1, Math.round(this.timeSignature * 4)); // 每小節幾拍
+		const p = this.pickupBeats;
+		for (let j = Math.ceil(fromTime - p - 1e-6); p + j <= this.totalBeats; j++) {
+			const at = p + j;
+			const isDownbeat = ((j % bpb) + bpb) % bpb === 0; // j 為負時也要取正餘數
+			const t = setTimeout(
+				() => {
+					if (this.metroCb.checked) click(isDownbeat);
+				},
+				(at - fromTime) * 1000 * bps,
+			);
+			this.timers.push(t);
+		}
+
+		const endTimer = setTimeout(
+			() => {
+				this.isPlaying = false;
+			},
+			(this.totalBeats - fromTime) * 1000 * bps,
+		);
+		this.timers.push(endTimer);
 	}
 
 	releaseStepNotes() {
@@ -331,11 +355,20 @@ export class Player {
 		this.stepHeld = [];
 	}
 
+	// 在指定 step 的琴鍵上亮提示（預設是「下一個要按的 step」）
+	showStepHint(index = this.stepIndex) {
+		for (const n of this.stepNotes?.[index] ?? []) {
+			if (n.pitch == 0) continue;
+			setIndicator(n.pitch, n.lyrics ? solidToHollow(n.lyrics) : "", n.hand);
+		}
+	}
+
 	stepPlay() {
 		if (!this.stepNotes) return;
 		if (this.stepIndex >= this.stepNotes.length) return; // 已到結尾
 
 		this.releaseStepNotes();
+		clearAllIndicators(); // 清掉剛才那個「下一鍵」提示
 
 		// 游標移到目前這一步（第一次按時游標在開頭，不用動）
 		if (this.stepIndex > 0) this.cursors[0].next();
@@ -343,16 +376,13 @@ export class Player {
 
 		const notes = this.stepNotes[this.stepIndex] ?? [];
 		for (const n of notes) {
-			let text;
-			if (n.lyrics) text = solidToHollow(n.lyrics);
-
 			if (n.pitch == 0) continue;
-			const vel = this.noteVelocity(n);
-			if (!n.lyrics) playNote(n.pitch, vel);
-			else playNote(n.pitch, vel, true);
+			playNote(n.pitch, this.noteVelocity(n), n.hand);
 		}
 		this.stepHeld = notes;
 		this.stepIndex++;
+
+		this.showStepHint(); // 此時 stepIndex 已指向下一步
 	}
 
 	resetStep() {

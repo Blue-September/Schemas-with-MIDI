@@ -9,8 +9,8 @@ export async function initSynth() {
 	audioContext = new AudioContext({
 		sampleRate: 44100,
 	});
+	setupAutoUnlock();
 
-	await audioContext.resume();
 	// 載入 worklet
 	await audioContext.audioWorklet.addModule("spessasynth_processor.min.js");
 
@@ -37,6 +37,25 @@ export async function initSynth() {
 	// 設定鋼琴音色
 	synth.programChange(0, 6); // channel :0, program: harpsichord(6)
 	console.log("Synth Ready");
+}
+
+function setupAutoUnlock() {
+	const events = ["pointerdown", "keydown", "touchend"];
+	const unlock = () => audioContext.resume();
+
+	audioContext.addEventListener("statechange", () => {
+		if (audioContext.state === "running") {
+			events.forEach((e) => window.removeEventListener(e, unlock, true));
+		}
+	});
+	// capture 階段，確保在琴鍵自己的 mousedown / keydown 處理之前先解鎖
+	events.forEach((e) => window.addEventListener(e, unlock, true));
+}
+
+// 節拍器 click：channel 9 是 GM 打擊樂，76 高木魚（重音）、77 低木魚
+export function click(accent = false) {
+	if (!synth) return;
+	synth.noteOn(9, accent ? 76 : 77, accent ? 127 : 90);
 }
 
 export function noteOn(note, velocity = 100) {

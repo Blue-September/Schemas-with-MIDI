@@ -35,6 +35,7 @@ function loadScore(data) {
 		player = new Player(osmd);
 		player.getOSMDInfo();
 		player.parserOSMDcursor();
+		player.showStepHint(); // 新增：亮出第 0 步
 		osmd.render();
 	});
 }
@@ -54,8 +55,7 @@ export async function loadScoreFromUrl(url) {
 		// mxl 是 zip，要轉成 binary string 給 OSMD
 		const bytes = new Uint8Array(await res.arrayBuffer());
 		let bin = "";
-		for (let i = 0; i < bytes.length; i++)
-			bin += String.fromCharCode(bytes[i]);
+		for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
 		loadScore(bin);
 	} else {
 		loadScore(await res.text());

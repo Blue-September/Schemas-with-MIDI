@@ -11,6 +11,8 @@
 		"preview": "vite preview"
 	},
 	"dependencies": {
+		"dompurify": "^3.4.17",
+		"marked": "^18.2.0",
 		"opensheetmusicdisplay": "^2.0.0",
 		"spessasynth_core": "latest",
 		"spessasynth_lib": "^4.3.3"
