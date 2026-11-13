@@ -84,19 +84,16 @@ function bindKey(key, note) {
 	});
 }
 
-export function playNote(note, velocity = 64, hand) {
+export function playNote(note, velocity = 64, hand = "R", channel = 0) {
 	const key = keyMap.get(note);
 	if (key) key.classList.add(hand === "L" ? "leftActive" : "rightActive");
-	noteOn(note, velocity);
+	noteOn(note, velocity, channel);
 }
 
-export function stopNote(note) {
-	noteOff(note);
+export function stopNote(note, channel = 0) {
+	noteOff(note, channel);
 	const key = keyMap.get(note);
-	if (key) {
-		key.classList.remove("rightActive");
-		key.classList.remove("leftActive");
-	}
+	if (key) key.classList.remove("rightActive", "leftActive");
 }
 
 export function setIndicator(note, text, hand) {
