@@ -1,9 +1,12 @@
 import { playNote, stopNote, setIndicator, clearIndicator, clearAllIndicators } from "./piano.js";
-import { click } from "./synth.js";
+import { click, CH } from "./synth.js";
 
-const VEL_NORMAL = 100; // 沒勾選時所有音符
-const VEL_LOUD = 127; // 勾選後：有數字（MIDI velocity 上限 127）
-const VEL_SOFT = 45; // 勾選後：沒數字
+const STRING_CH = { R: CH.VIOLIN, L: CH.VIOLA };
+const ALL_CH = Object.values(CH); // [0, 1, 2]
+
+const VEL_NORMAL = 96; // 沒勾選時所有音符
+const VEL_LOUD = 100; // 勾選後：有數字（MIDI velocity 上限 127）
+const VEL_SOFT = 40; // 勾選後：沒數字
 
 // 把各種 Unicode 數字轉成一般 0-9
 const SOLID_TO_HOLLOW = {
@@ -99,7 +102,7 @@ export class Player {
 		this.cursors = this.osmd.cursors;
 		this.baseBpm = this.osmd.Sheet.SourceMeasures[0].tempoInBPM;
 		this.setSpeed(1);
-		document.getElementById("bpmSlider").value = 1;
+		this.bpmSlider.value = 1;
 		this.timeSignature = this.osmd.sheet.sourceMeasures[0].activeTimeSignature.realValue;
 	}
 
@@ -257,12 +260,25 @@ export class Player {
 
 		// set beat per second
 		const bps = 60 / this.bpm;
+		const numTimes = { R: [], L: [] };
+		for (const n of this.playbackData) {
+			if (n.pitch != 0 && n.lyrics) numTimes[n.hand]?.push(n.time);
+		}
+		for (const h of ["R", "L"]) {
+			numTimes[h] = [...new Set(numTimes[h])].sort((a, b) => a - b);
+		}
+		const nextNumTime = (hand, t) => numTimes[hand]?.find((x) => x > t + 1e-6);
 
 		// 只排程「時間點 >= fromTime」的音符
 		const remainingNotes = this.playbackData.filter((note) => note.time >= fromTime);
 
 		remainingNotes.forEach((note) => {
 			const delta = (note.time - fromTime) * 1000 * bps;
+
+			const isNum = note.pitch != 0 && !!note.lyrics;
+			const stringCh = STRING_CH[note.hand] ?? STRING_CH.R;
+			const holdTo = isNum ? (nextNumTime(note.hand, note.time) ?? note.time + note.dur * 2) : 0;
+			let usedString = false;
 
 			// 指示器：提前顯示，音符開始時清掉
 			let text;
@@ -284,15 +300,12 @@ export class Player {
 
 			// note on
 			const onTimer = setTimeout(() => {
-				const vel = this.noteVelocity(note);
-				if (note.pitch == 0) {
-					// rest
-				} else if (!note.lyrics) {
-					playNote(note.pitch, vel, note.hand);
-				} else {
-					playNote(note.pitch, vel, note.hand);
+				if (note.pitch != 0) {
+					usedString = isNum && this.emphasisCb.checked;
+					playNote(note.pitch, this.noteVelocity(note), note.hand, usedString ? stringCh : CH.PIANO);
 				}
 
+				// 時間點改變才前進一格（同時間的和弦、雙手只動一次，休止也算）
 				if (note.time != this.curCursorTime) {
 					this.curCursorTime = note.time;
 					this.cursors[0].next();
@@ -302,19 +315,24 @@ export class Player {
 			// note off
 			const offTimer = setTimeout(
 				() => {
-					if (note.pitch == 0) {
-						// rest
-					} else if (!note.lyrics) {
-						stopNote(note.pitch);
-					} else {
-						stopNote(note.pitch);
-					}
+					if (note.pitch == 0 || usedString) return;
+					stopNote(note.pitch, CH.PIANO);
 				},
 				delta + note.dur * 1000 * bps,
 			);
 
-			this.timers.push(onTimer);
-			this.timers.push(offTimer);
+			this.timers.push(onTimer, offTimer);
+
+			if (isNum) {
+				// 小提琴音延續到下一個數字音符才放開
+				const holdTimer = setTimeout(
+					() => {
+						if (usedString) stopNote(note.pitch, stringCh);
+					},
+					(holdTo - fromTime) * 1000 * bps,
+				);
+				this.timers.push(holdTimer);
+			}
 		});
 
 		// 節拍器：第 j 拍位於 p + j，j % bpb == 0 是下拍（重音）
@@ -344,13 +362,8 @@ export class Player {
 	releaseStepNotes() {
 		for (const n of this.stepHeld) {
 			if (n.pitch == 0) continue;
-			if (!n.lyrics) {
-				stopNote(n.pitch);
-				clearIndicator(n.pitch);
-			} else {
-				stopNote(n.pitch);
-				clearIndicator(n.pitch);
-			}
+			for (const ch of ALL_CH) stopNote(n.pitch, ch);
+			clearIndicator(n.pitch);
 		}
 		this.stepHeld = [];
 	}
@@ -377,7 +390,8 @@ export class Player {
 		const notes = this.stepNotes[this.stepIndex] ?? [];
 		for (const n of notes) {
 			if (n.pitch == 0) continue;
-			playNote(n.pitch, this.noteVelocity(n), n.hand);
+			const ch = this.emphasisCb.checked && n.lyrics ? (STRING_CH[n.hand] ?? STRING_CH.R) : 0;
+			playNote(n.pitch, this.noteVelocity(n), n.hand, ch);
 		}
 		this.stepHeld = notes;
 		this.stepIndex++;
@@ -408,7 +422,7 @@ export class Player {
 
 		// ALL note off
 		for (let i = 0; i < 128; i++) {
-			stopNote(i);
+			for (const ch of ALL_CH) stopNote(i, ch);
 		}
 	}
 

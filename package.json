@@ -19,5 +19,8 @@
 	},
 	"devDependencies": {
 		"vite": "latest"
+	},
+	"allowScripts": {
+		"gl@9.0.0-rc.10": true
 	}
 }
